@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
+import { Router } from "express";
 import { createApp } from "../src/app.ts";
 import { withApi } from "./fixtures/api.mjs";
 
@@ -13,8 +14,8 @@ test("API fixture serves the application without fixed ports", async () => {
 });
 
 test("JSON parsing accepts bounded bodies and safely rejects invalid requests", async (t) => {
-  const app = createApp();
-  app.post("/echo", (request, response) => {
+  const routes = Router();
+  routes.post("/echo", (request, response) => {
     response.json({ body: request.body ?? null });
   });
   const limit = 100 * 1024;
@@ -97,15 +98,129 @@ test("JSON parsing accepts bounded bodies and safely rejects invalid requests", 
         });
         assert.equal(response.status, entry.status);
         assert.equal(response.headers.get("x-powered-by"), null);
+        assert.ok(response.headers.get("x-request-id"));
         assert.deepEqual(
           await response.json(),
           entry.status === 200
             ? { body: entry.parsed }
-            : { error: "Invalid request body" },
+            : {
+                error: {
+                  code:
+                    entry.status === 400
+                      ? "INVALID_REQUEST_BODY"
+                      : entry.status === 413
+                        ? "PAYLOAD_TOO_LARGE"
+                        : "UNSUPPORTED_MEDIA_TYPE",
+                  message:
+                    entry.status === 400
+                      ? "Invalid request body"
+                      : entry.status === 413
+                        ? "Request body too large"
+                        : "Unsupported request body encoding",
+                },
+                requestId: response.headers.get("x-request-id"),
+              },
         );
       });
     }
-  }, app);
+  }, createApp(routes));
+});
+
+test("missing routes return consistent errors with unique server-generated IDs", async () => {
+  await withApi(async (url) => {
+    const ids = new Set();
+    for (const clientId of ["caller-controlled", "another-id"]) {
+      const response = await fetch(`${url}/private-probe?secret=hidden`, {
+        headers: { "x-request-id": clientId },
+      });
+      const requestId = response.headers.get("x-request-id");
+      assert.match(
+        requestId,
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      assert.notEqual(requestId, clientId);
+      assert.equal(response.status, 404);
+      assert.deepEqual(await response.json(), {
+        error: { code: "NOT_FOUND", message: "Route not found" },
+        requestId,
+      });
+      ids.add(requestId);
+    }
+    assert.equal(ids.size, 2);
+  });
+});
+
+test("successful requests have a request identifier available to handlers", async () => {
+  const routes = Router();
+  routes.get("/ok", (_request, response) =>
+    response.json({ requestId: response.locals.requestId }),
+  );
+  await withApi(async (url) => {
+    const response = await fetch(`${url}/ok`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      requestId: response.headers.get("x-request-id"),
+    });
+  }, createApp(routes));
+});
+
+test("unexpected sync, async and non-Error failures are sanitized and correlated", async (t) => {
+  const logs = [];
+  t.mock.method(console, "error", (entry) => logs.push(entry));
+  const routes = Router();
+  routes.get("/sync", () => {
+    throw new Error("private-probe");
+  });
+  routes.get("/async", async () => {
+    throw new Error("private-probe");
+  });
+  routes.get("/unknown", (_request, _response, next) => next("private-probe"));
+  routes.get("/fake-status", () => {
+    throw Object.assign(new Error("private-probe"), { status: 401 });
+  });
+  await withApi(async (url) => {
+    for (const path of ["sync", "async", "unknown", "fake-status"]) {
+      const response = await fetch(`${url}/${path}`, {
+        headers: { authorization: "private-probe" },
+      });
+      const requestId = response.headers.get("x-request-id");
+      assert.equal(response.status, 500);
+      assert.deepEqual(await response.json(), {
+        error: { code: "INTERNAL_ERROR", message: "Internal server error" },
+        requestId,
+      });
+      assert.deepEqual(JSON.parse(logs.at(-1)), {
+        event: "request_failed",
+        requestId,
+        code: "INTERNAL_ERROR",
+      });
+    }
+  }, createApp(routes));
+  assert.equal(logs.length, 4);
+  assert.doesNotMatch(logs.join(""), /private-probe|authorization|stack/);
+});
+
+test("errors after response headers close the stream without a second response", async (t) => {
+  const logs = [];
+  t.mock.method(console, "error", (entry) => logs.push(entry));
+  const routes = Router();
+  routes.get("/stream", (_request, response, next) => {
+    response.write("partial response");
+    setImmediate(() => next(new Error("private-probe")));
+  });
+  await withApi(async (url) => {
+    await assert.rejects(async () => {
+      const response = await fetch(`${url}/stream`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      await response.text();
+    });
+    assert.equal(logs.length, 1);
+    assert.equal(JSON.parse(logs[0]).code, "INTERNAL_ERROR");
+    assert.doesNotMatch(logs.join(""), /private-probe/);
+    const healthyResponse = await fetch(url);
+    assert.equal(healthyResponse.status, 404);
+  }, createApp(routes));
 });
 
 test("API fixture closes its listener when a test fails", async () => {

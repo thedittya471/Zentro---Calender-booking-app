@@ -68,6 +68,12 @@ test(
     });
     assert.equal(api.status, 404);
     assert.equal(api.headers.get("x-powered-by"), null);
+    const requestId = api.headers.get("x-request-id");
+    assert.ok(requestId);
+    assert.deepEqual(await api.json(), {
+      error: { code: "NOT_FOUND", message: "Route not found" },
+      requestId,
+    });
 
     const duplicateApi = spawnSync(
       process.execPath,

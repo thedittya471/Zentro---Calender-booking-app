@@ -1,30 +1,14 @@
-import express, {
-  type NextFunction,
-  type Request,
-  type Response,
-} from "express";
+import express, { type Router } from "express";
+import { handleError, notFound, requestId } from "./middleware.js";
 
-export function createApp() {
+export function createApp(routes: Router = express.Router()) {
   const app = express();
   app.disable("x-powered-by");
+  app.use(requestId);
   // Better Auth must be mounted here before a parser consumes its request stream.
   app.use(express.json({ limit: 100 * 1024, strict: true, inflate: false }));
-  app.use(
-    (
-      error: { status?: number },
-      _request: Request,
-      response: Response,
-      next: NextFunction,
-    ) => {
-      if (
-        error.status !== 400 &&
-        error.status !== 413 &&
-        error.status !== 415
-      ) {
-        return next(error);
-      }
-      response.status(error.status).json({ error: "Invalid request body" });
-    },
-  );
+  app.use(routes);
+  app.use(notFound);
+  app.use(handleError);
   return app;
 }
