@@ -78,3 +78,11 @@ ESLint uses one root flat configuration for workspace source and scripts, with T
 The root Next.js development dependency provides the parser required by `eslint-config-next`; keep its version aligned with the web app. Next.js documents ESLint 10 support, although some bundled plugins still declare older ESLint peer ranges and produce installation warnings. See the [Next.js lint configuration reference](https://nextjs.org/docs/app/api-reference/config/eslint). No peer-range overrides are applied.
 
 Use `pnpm lint:fix` for safe automatic lint fixes and `pnpm format` to apply formatting. Review the resulting diff. Formatting and linting are separate checks; neither replaces type checking or tests.
+
+## Continuous integration
+
+[CI](.github/workflows/ci.yml) runs on pull requests, pushes to `main` and manual dispatch. It uses the Node.js version in `.node-version`, the pnpm version in `package.json` and a frozen lockfile install, with the pnpm store cached by lockfile.
+
+The `Quality checks` job checks formatting, lint, types, API/database tests and built application startup. It uses the same disposable PostgreSQL Compose stack as local tests and attempts cleanup after failures or cancellation. No application secrets or development services are needed. Actions are pinned to release commit hashes; update those hashes deliberately when upgrading.
+
+To enforce checks before merging, configure a GitHub branch ruleset for `main` requiring `Quality checks` after its first successful run. The workflow alone does not prevent merging; repository rules are managed separately. Action setup follows the official [checkout](https://github.com/actions/checkout), [Node.js](https://github.com/actions/setup-node) and [pnpm](https://github.com/pnpm/action-setup) guidance.
