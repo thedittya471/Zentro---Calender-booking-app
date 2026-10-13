@@ -1,8 +1,8 @@
 import { once } from "node:events";
 import { createApp } from "../../src/app.ts";
 
-export async function withApi(run) {
-  const server = createApp().listen(0, "127.0.0.1");
+export async function withApi(run, app = createApp()) {
+  const server = app.listen(0, "127.0.0.1");
   try {
     await once(server, "listening");
     const address = server.address();

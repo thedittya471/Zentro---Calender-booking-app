@@ -9,6 +9,7 @@
       "dependsOn": ["^check-types"]
     },
     "dev": {
+      "passThroughEnv": ["NODE_ENV", "API_HOST", "API_PORT"],
       "cache": false,
       "persistent": true
     }

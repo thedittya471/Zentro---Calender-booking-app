@@ -13,6 +13,8 @@ pnpm dev
 
 The web app runs at http://localhost:3000. The API scaffold binds to http://127.0.0.1:3001 and returns 404 for all paths until endpoints exist. The worker development watcher runs the scaffold, which logs that job processing is unconfigured and exits until the next source change.
 
+The API validates `NODE_ENV` (`development`, `test` or `production`), `API_HOST` (an IPv4/IPv6 address) and `API_PORT` (an integer from 1 through 65535) before opening its listener. Missing values default to `development`, `127.0.0.1` and `3001`; explicitly empty or invalid values terminate startup with the setting name, without printing its value. Export settings in your shell or inject them through your deployment environment; root `.env` is used by Compose and is not automatically loaded by the API. For example, `API_PORT=3002 pnpm dev` changes the API port. Container deployments must explicitly set `NODE_ENV=production` and `API_HOST=0.0.0.0` (or `::` for IPv6) when external access is intended. No server configuration is imported by the web app; the worker has no configuration consumers yet.
+
 ## Local PostgreSQL and Redis
 
 Start Docker Desktop or another compatible Docker daemon, then run:
@@ -38,6 +40,8 @@ pnpm infra:down
 Do not add `--volumes` unless you intentionally want to delete local data. Keep development volumes separate from test fixtures. Image patch upgrades should be reviewed; PostgreSQL major upgrades require an explicit migration, not just changing the image tag.
 
 ## Verification and build
+
+The API parses `application/json` object/array bodies with an explicit 100 KiB byte limit. Malformed JSON returns 400, oversized JSON returns 413 and compressed bodies or unsupported charsets return 415, with generic errors that omit payloads and stack traces. Other media types are left unparsed; no form, text, upload or raw-body parser is installed. Parsing does not replace route-specific validation. Future Better Auth handlers must be mounted before JSON middleware so their request streams remain intact. See the official [body-parser options](https://expressjs.com/en/resources/middleware/body-parser/) and [Better Auth Express integration](https://better-auth.com/docs/integrations/express).
 
 API and database integration tests use Node's built-in test runner, `tsx` and the test-only PostgreSQL client. Start the separate disposable database before the full suite:
 
@@ -69,7 +73,7 @@ pnpm --filter @repo/api start
 pnpm --filter @repo/worker start
 ```
 
-The worker start command exits immediately: no background work is implemented. API configuration, production listening/shutdown behavior, authentication, database connections and scheduling features are not implemented yet. The workspace build does not require secrets or external services.
+The worker start command exits immediately: no background work is implemented. Graceful production shutdown, authentication, database connections and scheduling features are not implemented yet. The workspace build does not require secrets or external services.
 
 Shared TypeScript settings live in `packages/typescript-config`. Database, contracts and UI packages will be added with their first consumers.
 
