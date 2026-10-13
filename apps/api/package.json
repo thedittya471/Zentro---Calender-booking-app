@@ -7,7 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "node --import tsx --test --test-timeout=10000 test/api.test.mjs test/database.test.mjs",
+    "test:api": "node --import tsx --test --test-timeout=10000 test/api.test.mjs"
   },
   "dependencies": {
     "express": "5.3.0"
@@ -16,7 +18,8 @@
     "@repo/typescript-config": "workspace:*",
     "@types/express": "5.0.6",
     "@types/node": "24.19.2",
-    "typescript": "5.9.3",
-    "tsx": "4.23.15"
+    "pg": "8.23.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
   }
 }

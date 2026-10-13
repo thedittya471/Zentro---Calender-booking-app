@@ -1,7 +1,6 @@
-import express from "express";
+import { createApp } from "./app.js";
 
-const app = express();
-app.disable("x-powered-by");
+const app = createApp();
 
 app.listen(3001, "127.0.0.1", (error?: Error) => {
   if (error) throw error;

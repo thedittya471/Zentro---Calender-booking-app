@@ -42,7 +42,7 @@ One-to-one means one host and one guest per booking. The service supports multip
 - Outlook and other calendar providers; automatic video-conference provisioning.
 - Payments, subscriptions and paid appointments.
 - Custom branding, embeds, customer-facing webhooks and advanced analytics.
-- Native mobile applications and full Calendly feature parity.
+- Native mobile applications and enterprise scheduling capabilities.
 
 These exclusions are future scope, not prerequisites for this release. Operational metrics remain included even though customer analytics are excluded.
 

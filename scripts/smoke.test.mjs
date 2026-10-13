@@ -61,7 +61,7 @@ test(
       signal: AbortSignal.timeout(5000),
     });
     assert.equal(page.status, 200);
-    assert.match(await page.text(), /<h1>Scheduling<\/h1>/);
+    assert.match(await page.text(), /<h1>Zentro<\/h1>/);
 
     const api = await fetch("http://127.0.0.1:3001", {
       signal: AbortSignal.timeout(5000),

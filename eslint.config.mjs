@@ -28,7 +28,7 @@ export default defineConfig([
     settings: { next: { rootDir: "apps/web/" } },
   },
   {
-    files: ["*.mjs", "scripts/**/*.mjs", "apps/{api,worker}/**/*.ts"],
+    files: ["*.mjs", "scripts/**/*.mjs", "apps/{api,worker}/**/*.{ts,mjs}"],
     languageOptions: { globals: globals.node },
   },
   prettier,

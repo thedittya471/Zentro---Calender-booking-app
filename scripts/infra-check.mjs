@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const cwd = fileURLToPath(new URL("../", import.meta.url));
-const compose = ["compose", "-f", "compose.dev.yaml", "-p", "calendly-local"];
+const compose = ["compose", "-f", "compose.dev.yaml", "-p", "zentro-local"];
 
 const postgres = execFileSync(
   "docker",

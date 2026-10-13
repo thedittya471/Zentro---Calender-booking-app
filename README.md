@@ -1,6 +1,6 @@
-# Scheduling
+# Zentro
 
-A pnpm/Turborepo workspace for individual meeting scheduling. Product boundaries and integration policies live in [docs/scope.md](docs/scope.md) and [docs/architecture.md](docs/architecture.md).
+A pnpm/Turborepo workspace for Zentro, an individual meeting scheduling app. Product boundaries and integration policies live in [docs/scope.md](docs/scope.md) and [docs/architecture.md](docs/architecture.md).
 
 ## Local development
 
@@ -38,6 +38,18 @@ pnpm infra:down
 Do not add `--volumes` unless you intentionally want to delete local data. Keep development volumes separate from test fixtures. Image patch upgrades should be reviewed; PostgreSQL major upgrades require an explicit migration, not just changing the image tag.
 
 ## Verification and build
+
+API and database integration tests use Node's built-in test runner, `tsx` and the test-only PostgreSQL client. Start the separate disposable database before the full suite:
+
+```sh
+pnpm test:infra:up
+pnpm test
+pnpm test:infra:down
+```
+
+The test Compose project binds PostgreSQL to `127.0.0.1:55432`, uses fixed test-only credentials and stores data in tmpfs, with no development volumes. Its data is disposable when the container is removed. The fixture ignores application/libpq connection settings and checks database/user identity before creating a unique schema for each invocation. Tests must create data in their fixture schema; do not qualify writes into shared schemas or point fixtures at development/production databases. Cleanup rolls back unfinished transactions, drops only the generated schema and closes the connection, including after test failures. Recreate the disposable container if a forcibly terminated run leaves stale fixtures.
+
+`pnpm test:api` runs the API fixture tests without a database. The application factory creates the same Express app used by the server entry point; tests bind random localhost ports and close listeners in finally blocks. Fixtures validate the existing scaffold, not unimplemented scheduling endpoints. Both suites use bounded test timeouts; a missing test database fails the full suite rather than skipping coverage. Stop the test stack after verification, including when tests fail. Database checks require Docker and permission to connect locally.
 
 ```sh
 pnpm check-types

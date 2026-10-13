@@ -1,4 +1,4 @@
-# Scheduling project guidance
+# Zentro project guidance
 
 ## Engineering approach
 
@@ -16,7 +16,7 @@ Document features by what users can do, expected outcomes, constraints and failu
 
 ## Project context
 
-This is an individual scheduling product, not full Calendly parity. Read only the relevant documents:
+Zentro is an individual scheduling product. Team and enterprise scheduling are outside the first release. Read only the relevant documents:
 
 - [Release scope](docs/scope.md): supported flows, exclusions and open product decisions.
 - [Architecture](docs/architecture.md): application boundaries, consistency and deployment.
@@ -46,9 +46,12 @@ pnpm lint
 pnpm format:check
 pnpm build
 pnpm test:smoke
+pnpm test:api
 ```
 
-The smoke check builds and starts applications on ports 3000/3001, checks responses and worker exit behavior, and stops its processes. Keep those ports free. Prefer focused checks for affected behavior; run build/type checks when configuration or shared contracts change. Linting uses the root ESLint configuration, and Prettier owns formatting. Use `pnpm format` to apply formatting and inspect the diff. No database-test harness exists yet; do not report nonexistent checks as passing.
+The smoke check builds and starts applications on ports 3000/3001, checks responses and worker exit behavior, and stops its processes. Keep those ports free. Prefer focused checks for affected behavior; run build/type checks when configuration or shared contracts change. Linting uses the root ESLint configuration, and Prettier owns formatting. Use `pnpm format` to apply formatting and inspect the diff.
+
+For database/API integration coverage, run `pnpm test:infra:up`, then `pnpm test`, then `pnpm test:infra:down` even if tests fail. Use `apps/api/test/fixtures` for isolated data and random-port API listeners. The test database has fixed test-only settings, identity checks and disposable storage; do not redirect it to application databases or bypass its cleanup guard. A database outage must fail required integration checks, not skip them.
 
 Local infrastructure uses `pnpm infra:up`, `pnpm infra:status`, `pnpm infra:check` and `pnpm infra:down`. A running Docker daemon is required. Down preserves named volumes; never delete volumes or reuse development data for tests without explicit authorization. `infra:check` verifies container-side connections, not application integration. Root `.env.example` contains local-only settings; keep actual `.env` files ignored.
 
