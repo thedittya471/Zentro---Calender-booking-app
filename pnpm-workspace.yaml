@@ -1,7 +1,8 @@
 packages:
-  - 'apps/*'
-  - 'packages/*'
+  - "apps/*"
+  - "packages/*"
 
-# tsx needs esbuild's native executable; other install scripts stay blocked.
+# Only reviewed native tooling setup scripts are allowed.
 allowBuilds:
   esbuild: true
+  unrs-resolver: true

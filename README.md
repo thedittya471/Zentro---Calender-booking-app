@@ -17,6 +17,8 @@ The web app runs at http://localhost:3000. The API scaffold binds to http://127.
 
 ```sh
 pnpm check-types
+pnpm lint
+pnpm format:check
 pnpm build
 pnpm test:smoke
 ```
@@ -34,3 +36,9 @@ pnpm --filter @repo/worker start
 The worker start command exits immediately: no background work is implemented. API configuration, production listening/shutdown behavior, authentication, database connections and scheduling features are not implemented yet. The workspace build does not require secrets or external services.
 
 Shared TypeScript settings live in `packages/typescript-config`. Database, contracts and UI packages will be added with their first consumers.
+
+ESLint uses one root flat configuration for workspace source and scripts, with TypeScript recommended rules and Next.js/React rules scoped to the web app. Warnings fail the lint command. Prettier owns formatting; generated output and the generated lockfile are excluded.
+
+The root Next.js development dependency provides the parser required by `eslint-config-next`; keep its version aligned with the web app. Next.js documents ESLint 10 support, although some bundled plugins still declare older ESLint peer ranges and produce installation warnings. See the [Next.js lint configuration reference](https://nextjs.org/docs/app/api-reference/config/eslint). No peer-range overrides are applied.
+
+Use `pnpm lint:fix` for safe automatic lint fixes and `pnpm format` to apply formatting. Review the resulting diff. Formatting and linting are separate checks; neither replaces type checking or tests.

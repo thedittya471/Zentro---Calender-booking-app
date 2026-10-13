@@ -42,11 +42,13 @@ Use Node.js 24 as the project baseline and pnpm 11.5.3 as pinned in `package.jso
 pnpm install --frozen-lockfile
 pnpm dev
 pnpm check-types
+pnpm lint
+pnpm format:check
 pnpm build
 pnpm test:smoke
 ```
 
-The smoke check builds and starts applications on ports 3000/3001, checks responses and worker exit behavior, and stops its processes. Keep those ports free. Prefer focused checks for affected behavior; run build/type checks when configuration or shared contracts change. No lint or database-test harness exists yet; do not report nonexistent checks as passing.
+The smoke check builds and starts applications on ports 3000/3001, checks responses and worker exit behavior, and stops its processes. Keep those ports free. Prefer focused checks for affected behavior; run build/type checks when configuration or shared contracts change. Linting uses the root ESLint configuration, and Prettier owns formatting. Use `pnpm format` to apply formatting and inspect the diff. No database-test harness exists yet; do not report nonexistent checks as passing.
 
 Include a focused regression check with nontrivial behavior. Use real PostgreSQL for transactions and concurrency once persistence exists, and deterministic provider fixtures for failure cases. Do not skip tests, weaken compiler settings or suppress errors to make a check pass. Report unverified behavior plainly.
 

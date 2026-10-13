@@ -10,11 +10,11 @@ The user selected this recovery policy: preserve confirmed bookings and pause ne
 
 Request these Calendar scopes when the host connects, not at sign-in:
 
-| Scope suffix under `https://www.googleapis.com/auth/` | Purpose |
-|---|---|
-| `calendar.calendarlist.readonly` | List available calendars and access roles for host selection |
-| `calendar.events.freebusy` | Read busy intervals from accessible selected calendars |
-| `calendar.events` | Create, inspect, update and delete booking events in a selected writable calendar |
+| Scope suffix under `https://www.googleapis.com/auth/` | Purpose                                                                           |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `calendar.calendarlist.readonly`                      | List available calendars and access roles for host selection                      |
+| `calendar.events.freebusy`                            | Read busy intervals from accessible selected calendars                            |
+| `calendar.events`                                     | Create, inspect, update and delete booking events in a selected writable calendar |
 
 The events scope supports calendars where the host has write access without ownership. The narrower `calendar.events.owned` would exclude that capability. Do not request calendar administration, ACL or full `calendar` access. Google scopes grant broader provider access than a single selected calendar; our server must restrict operations to approved selections and app-created event mappings. See [scope definitions](https://developers.google.com/workspace/calendar/api/auth).
 
@@ -40,16 +40,16 @@ External edits can still occur between a Google check and database commit. Do no
 
 ## Error classification
 
-| Condition | Required behavior |
-|---|---|
+| Condition                                                             | Required behavior                                                                                                                    |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Network timeout, retryable 5xx, quota/rate-limit reason on 403 or 429 | Bounded backoff with jitter and applicable Retry-After; request deadline prevents long synchronous waits; durable writes retry later |
-| Expired access token / 401 | Refresh once and retry once; persistent failure marks reconnect required |
-| Refresh `invalid_grant`, missing scopes, access denied | Pause new bookings and show reconnect/review; no repeated blind retries |
-| Selected calendar missing or no longer readable/writable | Pause new bookings; preserve selections for review rather than ignoring them |
-| Invalid request / non-retryable 400 | Record actionable sanitized failure; correct configuration or implementation before replay |
-| Duplicate event identifier / 409 on create | Fetch the expected event and verify app ownership before treating creation as completed |
-| Missing mapped event on update/delete | Reconcile whether removed, inaccessible or already canceled; never treat all 404 responses as successful cancellation |
-| Outdated conditional write / 412 | Reload provider state and reconcile booking revision; avoid overwriting a newer state |
+| Expired access token / 401                                            | Refresh once and retry once; persistent failure marks reconnect required                                                             |
+| Refresh `invalid_grant`, missing scopes, access denied                | Pause new bookings and show reconnect/review; no repeated blind retries                                                              |
+| Selected calendar missing or no longer readable/writable              | Pause new bookings; preserve selections for review rather than ignoring them                                                         |
+| Invalid request / non-retryable 400                                   | Record actionable sanitized failure; correct configuration or implementation before replay                                           |
+| Duplicate event identifier / 409 on create                            | Fetch the expected event and verify app ownership before treating creation as completed                                              |
+| Missing mapped event on update/delete                                 | Reconcile whether removed, inaccessible or already canceled; never treat all 404 responses as successful cancellation                |
+| Outdated conditional write / 412                                      | Reload provider state and reconcile booking revision; avoid overwriting a newer state                                                |
 
 Classify provider error reasons as well as HTTP status: not every 403 is transient. See [Google error guidance](https://developers.google.com/workspace/calendar/api/guides/errors).
 

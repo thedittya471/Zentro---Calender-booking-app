@@ -8,11 +8,11 @@ The runtime applications and shared TypeScript configuration have minimal worksp
 
 ## Runtime boundaries
 
-| Application | Owns | Boundary |
-|---|---|---|
-| `apps/web` | Public booking pages, host dashboard, rendering and client interaction | Calls the API; does not access PostgreSQL, OAuth credentials or implement authoritative booking rules |
-| `apps/api` | Authentication enforcement, authorization, validation, availability, booking transactions and OAuth callbacks | Owns synchronous business decisions and records durable side effects; does not wait for confirmation email delivery |
-| `apps/worker` | Calendar writes, emails, reminders, retries and recovery | Processes persisted jobs; does not expose public booking endpoints or bypass booking lifecycle rules |
+| Application   | Owns                                                                                                          | Boundary                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `apps/web`    | Public booking pages, host dashboard, rendering and client interaction                                        | Calls the API; does not access PostgreSQL, OAuth credentials or implement authoritative booking rules               |
+| `apps/api`    | Authentication enforcement, authorization, validation, availability, booking transactions and OAuth callbacks | Owns synchronous business decisions and records durable side effects; does not wait for confirmation email delivery |
+| `apps/worker` | Calendar writes, emails, reminders, retries and recovery                                                      | Processes persisted jobs; does not expose public booking endpoints or bypass booking lifecycle rules                |
 
 Zustand holds scoped shared client interaction state. TanStack Query owns fetched API state. Neither client store decides whether a reservation is valid; the API revalidates every submission.
 
@@ -20,13 +20,13 @@ Server-side Next.js rendering uses the same API boundary. Private requests forwa
 
 ## Shared packages
 
-| Package | Responsibility | Consumers |
-|---|---|---|
-| `packages/contracts` | Zod request/response schemas and inferred API types | Web and API; no database or server-secret imports |
-| `packages/db` | Drizzle schema, migrations and database access configuration | API, worker and migration tooling only |
-| `packages/typescript-config` | Shared TypeScript compiler settings | Workspace applications/packages |
-| `packages/eslint-config` | Shared lint configuration | Workspace applications/packages |
-| `packages/ui` | Accessible presentation primitives when reuse warrants extraction | Frontend consumers only |
+| Package                      | Responsibility                                                    | Consumers                                         |
+| ---------------------------- | ----------------------------------------------------------------- | ------------------------------------------------- |
+| `packages/contracts`         | Zod request/response schemas and inferred API types               | Web and API; no database or server-secret imports |
+| `packages/db`                | Drizzle schema, migrations and database access configuration      | API, worker and migration tooling only            |
+| `packages/typescript-config` | Shared TypeScript compiler settings                               | Workspace applications/packages                   |
+| `packages/eslint-config`     | Shared lint configuration                                         | Workspace applications/packages                   |
+| `packages/ui`                | Accessible presentation primitives when reuse warrants extraction | Frontend consumers only                           |
 
 Extract shared server behavior only when API and worker both need it; avoid importing executable application entry points between applications. Runtime applications consume packages, and packages do not depend on applications. Do not create an empty domain framework or generic provider abstraction in anticipation of additional integrations.
 
