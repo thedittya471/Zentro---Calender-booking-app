@@ -1,0 +1,7 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# tsx needs esbuild's native executable; other install scripts stay blocked.
+allowBuilds:
+  esbuild: true

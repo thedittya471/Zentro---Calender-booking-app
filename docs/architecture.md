@@ -4,7 +4,7 @@
 
 Use a TypeScript pnpm workspace managed by Turborepo. The product is one application with three runtime processes: Next.js web, Express API and a background worker. PostgreSQL is the source of truth; Redis supports distributed abuse controls. This follows the stack and individual scheduling scope already defined in [scope.md](scope.md).
 
-The paths below describe the intended structure, not implemented applications. Better Auth with Google and email/password sign-in is defined in [authentication.md](authentication.md). Hosting vendors and the email provider remain undecided.
+The runtime applications and shared TypeScript configuration have minimal workspace scaffolds. The boundaries below describe intended product behavior; booking, authentication and integrations are not implemented. Better Auth with Google and email/password sign-in is defined in [authentication.md](authentication.md). Hosting vendors and the email provider remain undecided.
 
 ## Runtime boundaries
 
