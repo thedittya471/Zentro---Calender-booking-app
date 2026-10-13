@@ -13,7 +13,11 @@
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix --max-warnings=0",
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "infra:up": "docker compose -f compose.dev.yaml -p calendly-local up --wait --wait-timeout 60",
+    "infra:down": "docker compose -f compose.dev.yaml -p calendly-local down",
+    "infra:status": "docker compose -f compose.dev.yaml -p calendly-local ps",
+    "infra:check": "node scripts/infra-check.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
