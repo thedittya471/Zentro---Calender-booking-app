@@ -14,7 +14,7 @@ export DATABASE_URL='postgresql://zentro:dev_only@127.0.0.1:5432/zentro'
 pnpm dev
 ```
 
-The web app runs at http://localhost:3000. The API scaffold binds to http://127.0.0.1:3001 and returns 404 for all paths until endpoints exist. The worker development watcher runs the scaffold, which logs that job processing is unconfigured and exits until the next source change.
+The web app runs at http://localhost:3000. The API binds to http://127.0.0.1:3001, exposes health probes and returns 404 for unmatched paths. The worker development watcher runs the scaffold, which logs that job processing is unconfigured and exits until the next source change.
 
 The API validates `NODE_ENV` (`development`, `test` or `production`), `API_HOST` (an IPv4/IPv6 address) and `API_PORT` (an integer from 1 through 65535) before opening its listener. Missing values default to `development`, `127.0.0.1` and `3001`; explicitly empty or invalid values terminate startup with the setting name, without printing its value. Export settings in your shell or inject them through your deployment environment; root `.env` is used by Compose and is not automatically loaded by the API. For example, `API_PORT=3002 pnpm dev` changes the API port. Container deployments must explicitly set `NODE_ENV=production` and `API_HOST=0.0.0.0` (or `::` for IPv6) when external access is intended. No server configuration is imported by the web app; the worker has no configuration consumers yet.
 
@@ -65,6 +65,17 @@ node packages/db/dist/migrate.js
 Ship the `@repo/db` workspace dependency, including `packages/db/dist` and `packages/db/drizzle`, with the API deployment. The migration runner uses one connection, records applied migrations in `drizzle.__drizzle_migrations`, closes its pool on success/failure, and exits nonzero with a sanitized `migration_failed` event on SQL/connection failure. It validates database settings independently of API listener settings. It uses the same timeout bounds as the API; review long DDL/backfills separately. Serialize migration jobs: this runner does not coordinate concurrent deployments. Application startup never runs migrations. Repeating a successful migration run preserves data and applies no duplicate SQL. There are no product migrations yet; an empty run initializes only Drizzle's bookkeeping. See [Drizzle generation](https://orm.drizzle.team/docs/drizzle-kit-generate) and [migration configuration](https://orm.drizzle.team/docs/drizzle-config-file).
 
 On SIGINT/SIGTERM the API stops accepting connections, drains requests, and closes its pool. A 10-second deadline forces a nonzero exit if draining cannot finish. Listener failures also release the pool. `app.ts` remains limited to Express middleware and route wiring.
+
+## API health probes
+
+| Endpoint            | Success                                                    | Dependency failure                                                                                  |
+| ------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `GET /health/live`  | 200 with `{ "status": "alive" }`                           | Still 200 while the HTTP process can respond; performs no dependency checks                         |
+| `GET /health/ready` | 200 with `{ "status": "ready" }` after PostgreSQL responds | 503 with `{ "error": { "code": "NOT_READY", "message": "Service not ready" }, "requestId": "..." }` |
+
+Both endpoints are public, contain no credentials or dependency details, carry a server-generated `X-Request-ID`, support HEAD, and set `Cache-Control: no-store`. They precede the JSON parser and domain routers. Readiness uses a fresh `SELECT 1` through the same pool as application requests: acquisition/connection has the existing 3-second deadline, followed by a 2-second client-side query deadline. Failed/timed-out checks return 503 rather than stale success; the pool discards a timed-out query client. Subsequent probes can recover without restarting the process. Choose probe timeouts allowing for these bounds and request overhead.
+
+The server refuses readiness when shutdown begins, including if shutdown starts during a check. A factory without a configured check reports 503. Readiness failures log only `readiness_failed`, the request ID and `NOT_READY`, never raw database errors. Use liveness for process checks and readiness for traffic admission. PostgreSQL connectivity does not establish schema compatibility, provider access or end-user scheduling correctness. Redis and the worker have no active runtime dependency checks yet; add them with their real consumers and agreed failure policies.
 
 ## Verification and build
 

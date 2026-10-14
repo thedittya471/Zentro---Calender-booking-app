@@ -13,6 +13,65 @@ test("API fixture serves the application without fixed ports", async () => {
   });
 });
 
+test("health endpoints distinguish process liveness from readiness and redact failures", async (t) => {
+  const logs = [];
+  t.mock.method(console, "error", (entry) => logs.push(JSON.parse(entry)));
+  let failing = false;
+  let checks = 0;
+  const app = createApp(undefined, async () => {
+    checks++;
+    if (failing)
+      throw new Error("postgres://private-password@private-host guest details");
+  });
+  await withApi(async (url) => {
+    const live = await fetch(`${url}/health/live`);
+    assert.equal(live.status, 200);
+    assert.deepEqual(await live.json(), { status: "alive" });
+    assert.equal(live.headers.get("cache-control"), "no-store");
+    assert.ok(live.headers.get("x-request-id"));
+    assert.equal(checks, 0);
+    const ready = await fetch(`${url}/health/ready`);
+    assert.equal(ready.status, 200);
+    assert.deepEqual(await ready.json(), { status: "ready" });
+    assert.equal(ready.headers.get("cache-control"), "no-store");
+    failing = true;
+    const unavailable = await fetch(`${url}/health/ready`);
+    const requestId = unavailable.headers.get("x-request-id");
+    assert.equal(unavailable.status, 503);
+    assert.equal(unavailable.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await unavailable.json(), {
+      error: { code: "NOT_READY", message: "Service not ready" },
+      requestId,
+    });
+    assert.deepEqual(logs, [
+      { event: "readiness_failed", requestId, code: "NOT_READY" },
+    ]);
+    assert.doesNotMatch(
+      JSON.stringify(logs),
+      /private-password|private-host|guest details/,
+    );
+    assert.equal((await fetch(`${url}/health/live`)).status, 200);
+    assert.equal(checks, 2);
+    failing = false;
+    assert.equal((await fetch(`${url}/health/ready`)).status, 200);
+    const head = await fetch(`${url}/health/live`, { method: "HEAD" });
+    assert.equal(head.status, 200);
+    assert.equal(await head.text(), "");
+    assert.equal(
+      (await fetch(`${url}/health/live`, { method: "POST" })).status,
+      404,
+    );
+  }, app);
+});
+
+test("readiness without a configured dependency check fails closed", async (t) => {
+  t.mock.method(console, "error", () => {});
+  await withApi(async (url) => {
+    assert.equal((await fetch(`${url}/health/live`)).status, 200);
+    assert.equal((await fetch(`${url}/health/ready`)).status, 503);
+  });
+});
+
 test("JSON parsing accepts bounded bodies and safely rejects invalid requests", async (t) => {
   const routes = Router();
   routes.post("/echo", (request, response) => {

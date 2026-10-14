@@ -1,15 +1,19 @@
 import { createApp } from "../app.js";
 import { readConfig } from "../config/env.js";
-import { createDatabase } from "@repo/db";
-import { sql } from "drizzle-orm";
+import { checkDatabase, createDatabase } from "@repo/db";
 
 export async function startServer() {
   const config = readConfig(process.env);
-  const app = createApp();
   const db = createDatabase(process.env);
+  let stopping = false;
+  const app = createApp(undefined, async () => {
+    if (stopping) throw new Error("Server stopping");
+    await checkDatabase(db);
+    if (stopping) throw new Error("Server stopping");
+  });
 
   try {
-    await db.execute(sql`SELECT 1`);
+    await checkDatabase(db);
     const server = app.listen(config.port, config.host);
     server.on("error", (error: NodeJS.ErrnoException) => {
       console.error(
@@ -25,7 +29,6 @@ export async function startServer() {
       const host = config.host.includes(":") ? `[${config.host}]` : config.host;
       console.info(`API listening on http://${host}:${config.port}`);
     });
-    let stopping = false;
     const shutdown = () => {
       if (stopping) return;
       stopping = true;

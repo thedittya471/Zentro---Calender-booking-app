@@ -99,6 +99,19 @@ test(
       requestId,
     });
 
+    for (const [path, status] of [
+      ["live", "alive"],
+      ["ready", "ready"],
+    ]) {
+      const response = await fetch(`http://127.0.0.1:3001/health/${path}`, {
+        signal: AbortSignal.timeout(6000),
+      });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { status });
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.ok(response.headers.get("x-request-id"));
+    }
+
     const duplicateApi = spawnSync(
       process.execPath,
       ["apps/api/dist/index.js"],

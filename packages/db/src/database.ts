@@ -9,3 +9,9 @@ export function createDatabase(env: NodeJS.ProcessEnv) {
   });
   return drizzle(pool);
 }
+
+export function checkDatabase(db: ReturnType<typeof createDatabase>) {
+  // pg supports per-query deadlines; its QueryConfig type omits this option.
+  const query = { text: "SELECT 1", query_timeout: 2000 };
+  return db.$client.query(query);
+}

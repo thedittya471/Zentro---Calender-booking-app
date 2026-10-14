@@ -6,10 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { sql } from "drizzle-orm";
-import { createDatabase } from "@repo/db";
+import { checkDatabase, createDatabase } from "@repo/db";
 import { migrateDatabase } from "@repo/db/migrations";
 import { databaseUrl, withDatabase } from "./fixtures/database.mjs";
 import { withApi } from "./fixtures/api.mjs";
+import { createApp } from "../src/app.ts";
 
 test("database fixture rejects an unexpected database before writing", async (t) => {
   t.mock.method(pg.Client.prototype, "connect", async () => {});
@@ -282,4 +283,71 @@ test("connected API startup rejects an occupied listener and releases its pool",
       );
     });
   });
+});
+
+test("readiness reflects real pool saturation and recovery while liveness stays available", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const db = createDatabase({
+    NODE_ENV: "test",
+    DATABASE_URL: databaseUrl,
+    DB_POOL_MAX: "1",
+  });
+  try {
+    await withApi(
+      async (url) => {
+        assert.equal((await fetch(`${url}/health/ready`)).status, 200);
+        const held = await db.$client.connect();
+        try {
+          const pending = fetch(`${url}/health/ready`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          assert.equal((await fetch(`${url}/health/live`)).status, 200);
+          const response = await pending;
+          assert.equal(response.status, 503);
+          assert.equal((await response.json()).error.code, "NOT_READY");
+          assert.equal(db.$client.waitingCount, 0);
+        } finally {
+          held.release();
+        }
+        assert.equal((await fetch(`${url}/health/ready`)).status, 200);
+      },
+      createApp(undefined, () => checkDatabase(db)),
+    );
+  } finally {
+    await db.$client.end();
+  }
+});
+
+test("a stalled database response times out, removes the broken client, and recovers", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const db = createDatabase({
+    NODE_ENV: "test",
+    DATABASE_URL: databaseUrl,
+    DB_POOL_MAX: "1",
+  });
+  let client;
+  try {
+    await withApi(
+      async (url) => {
+        client = await db.$client.connect();
+        // Withhold real socket replies to exercise the client-side probe deadline.
+        client.connection.stream.pause();
+        client.release();
+        const pending = fetch(`${url}/health/ready`, {
+          signal: AbortSignal.timeout(4000),
+        });
+        assert.equal((await fetch(`${url}/health/live`)).status, 200);
+        const response = await pending;
+        assert.equal(response.status, 503);
+        assert.equal((await response.json()).error.code, "NOT_READY");
+        assert.equal(db.$client.totalCount, 0);
+        assert.equal((await fetch(`${url}/health/ready`)).status, 200);
+      },
+      createApp(undefined, () => checkDatabase(db)),
+    );
+  } finally {
+    // Failed assertions must not strand pool shutdown on withheld socket replies.
+    client?.connection.stream.resume();
+    await db.$client.end();
+  }
 });
