@@ -23,16 +23,17 @@ Zentro is an individual scheduling product. Team and enterprise scheduling are o
 - [Authentication](docs/authentication.md): Better Auth, Google plus email/password, verification/recovery and fixed database sessions.
 - [Google Calendar](docs/google-calendar.md): consent, permissions and failure/recovery policy.
 
-Current code is workspace scaffolding. Authentication, scheduling, persistence and integrations are not implemented. Inspect actual source before assuming a documented capability exists.
+Authentication, scheduling, domain persistence and integrations are not implemented. Inspect actual source before assuming a documented capability exists.
 
 ## Workspace boundaries
 
 - `apps/web`: Next.js App Router frontend. No direct database access or server credential storage. Zustand is intended for shared UI state and TanStack Query for API state; neither is installed yet.
 - `apps/api`: Express ESM backend; owns authentication enforcement, authorization, validation and booking admission.
 - `apps/worker`: background entry point; currently logs that processing is unconfigured and exits.
-- `packages/typescript-config`: existing shared compiler settings. Add database, contracts and UI packages with their first real consumers, not as empty scaffolding.
+- `packages/db`: server-only PostgreSQL/Drizzle connection settings, pool factory, schema and migration tooling. Applications import its package exports; importing must not connect or execute migrations. Each process owns its pool lifecycle. No frontend consumers.
+- `packages/typescript-config`: existing shared compiler settings. Add contracts and UI packages with their first real consumers, not as empty scaffolding.
 
-Use TypeScript and the existing pnpm workspace. Do not introduce another package manager or lockfile. Use `workspace:*` for internal dependencies. Keep runtime entry points out of shared package imports. PostgreSQL/Drizzle, Redis and Zod are planned; add them only when required by implemented behavior.
+Use TypeScript and the existing pnpm workspace. Do not introduce another package manager or lockfile. Use `workspace:*` for internal dependencies. Keep runtime entry points out of shared package imports. Reuse `@repo/db`; never import database code from an application into a shared package. Organize API code in configuration, middleware, server lifecycle and feature folders; add utility modules only for actual reusable logic. Add Redis and Zod only when required by implemented behavior.
 
 ## Commands and verification
 
@@ -49,7 +50,9 @@ pnpm test:smoke
 pnpm test:api
 ```
 
-The smoke check builds and starts applications on ports 3000/3001, checks responses and worker exit behavior, and stops its processes. Keep those ports free. Prefer focused checks for affected behavior; run build/type checks when configuration or shared contracts change. Linting uses the root ESLint configuration, and Prettier owns formatting. Use `pnpm format` to apply formatting and inspect the diff.
+The smoke check requires the disposable test database, builds and starts applications on ports 3000/3001, checks responses and worker exit behavior, and stops its processes. Keep those ports free; use `pnpm test:infra:up` before it and `pnpm test:infra:down` afterward, including on failure. Prefer focused checks for affected behavior; run build/type checks when configuration or shared contracts change. Linting uses the root ESLint configuration, and Prettier owns formatting. Use `pnpm format` to apply formatting and inspect the diff.
+
+API startup and `pnpm db:migrate` require an explicit server-side `DATABASE_URL`; builds and `pnpm db:generate` do not. Generate and review versioned migrations with their schema changes, then apply them once in a serialized deployment step, never at replica startup. Ship the database package's compiled output and `packages/db/drizzle` directory with the deployment. Turborepo builds compiled dependencies before consumers; preserve this ordering for builds, types, tests and development. Production connections require certificate-verified TLS. Budget `DB_POOL_MAX` across replicas; see README for connection/timeout bounds and setup.
 
 For database/API integration coverage, run `pnpm test:infra:up`, then `pnpm test`, then `pnpm test:infra:down` even if tests fail. Use `apps/api/test/fixtures` for isolated data and random-port API listeners. The test database has fixed test-only settings, identity checks and disposable storage; do not redirect it to application databases or bypass its cleanup guard. A database outage must fail required integration checks, not skip them.
 

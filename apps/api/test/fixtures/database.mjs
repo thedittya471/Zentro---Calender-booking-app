@@ -2,14 +2,13 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 
+export const databaseUrl =
+  "postgresql://zentro_test:test_only@127.0.0.1:55432/zentro_test";
+
 export async function withDatabase(run) {
   // Fixed test-only connection: application/libpq environment must not redirect cleanup.
   const client = new pg.Client({
-    host: "127.0.0.1",
-    port: 55432,
-    user: "zentro_test",
-    password: "test_only",
-    database: "zentro_test",
+    connectionString: databaseUrl,
     ssl: false,
     connectionTimeoutMillis: 3000,
     statement_timeout: 5000,

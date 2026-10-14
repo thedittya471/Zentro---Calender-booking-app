@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
-import { readConfig } from "../src/config.ts";
-import { withApi } from "./fixtures/api.mjs";
+import { readConfig } from "../src/config/env.ts";
+import { readDatabaseConfig } from "@repo/db/config";
 
 test("API configuration defaults to local development", () => {
   assert.deepEqual(readConfig({}), {
@@ -88,28 +88,122 @@ test("invalid configuration terminates API startup before listening", () => {
   }
 });
 
-test("API startup uses the configured port and rejects an occupied listener", async () => {
-  await withApi(async (url) => {
-    const port = new URL(url).port;
+test("database configuration requires an explicit PostgreSQL connection and bounded pool", () => {
+  const url = "postgresql://host:private-password@127.0.0.1:55432/zentro_test";
+  const config = readDatabaseConfig({ DATABASE_URL: url });
+  assert.throws(
+    () => readDatabaseConfig({ DATABASE_URL: url, NODE_ENV: "invalid" }),
+    /^Error: Invalid NODE_ENV$/,
+  );
+  assert.equal(config.connectionString, url);
+  assert.equal(config.max, 10);
+  assert.equal(config.connectionTimeoutMillis, 3000);
+  assert.equal(config.statement_timeout, 5000);
+  assert.equal(config.idle_in_transaction_session_timeout, 5000);
+  assert.equal(config.idleTimeoutMillis, 10000);
+  assert.equal(config.ssl, false);
+  assert.equal(
+    readDatabaseConfig({ DATABASE_URL: url, DB_POOL_MAX: "2" }).max,
+    2,
+  );
+  assert.deepEqual(
+    readDatabaseConfig({ DATABASE_URL: url, NODE_ENV: "production" }).ssl,
+    { rejectUnauthorized: true },
+  );
+  for (const value of [
+    undefined,
+    "",
+    "https://host:private-password@host/db",
+    "postgres://host/db",
+    "postgres://host:private-password@host/",
+    "postgres://host:private-password%ZZ@host/db",
+    `${url}?sslmode=no-verify`,
+    `${url}?options=unsafe`,
+  ]) {
+    assert.throws(
+      () => readDatabaseConfig({ DATABASE_URL: value }),
+      /^Error: Invalid DATABASE_URL$/,
+    );
+  }
+  assert.throws(
+    () =>
+      readDatabaseConfig({
+        NODE_ENV: "production",
+        DATABASE_URL: `${url}?sslmode=disable`,
+      }),
+    /^Error: Invalid DATABASE_URL$/,
+  );
+  for (const value of [
+    "",
+    "0",
+    "101",
+    "-1",
+    "1.5",
+    "1e1",
+    " 2",
+    "private-password",
+  ]) {
+    assert.throws(
+      () => readDatabaseConfig({ DATABASE_URL: url, DB_POOL_MAX: value }),
+      /^Error: Invalid DB_POOL_MAX$/,
+    );
+  }
+});
+
+test("database package imports are lazy and browser exports are blocked", () => {
+  for (const entry of ["@repo/db", "@repo/db/config", "@repo/db/migrations"]) {
     const result = spawnSync(
       process.execPath,
-      ["--import", "tsx", "src/index.ts"],
+      ["--input-type=module", "--eval", `await import('${entry}')`],
       {
         cwd: new URL("../", import.meta.url),
-        env: {
-          ...process.env,
-          NODE_ENV: "production",
-          API_HOST: "127.0.0.1",
-          API_PORT: port,
-        },
+        env: { ...process.env, DATABASE_URL: "invalid", NODE_ENV: "invalid" },
         encoding: "utf8",
         timeout: 3000,
       },
     );
     assert.equal(result.error, undefined);
+    assert.equal(result.status, 0, result.stderr);
+    const browser = spawnSync(
+      process.execPath,
+      [
+        "--conditions=browser",
+        "--input-type=module",
+        "--eval",
+        `await import('${entry}')`,
+      ],
+      {
+        cwd: new URL("../", import.meta.url),
+        encoding: "utf8",
+        timeout: 3000,
+      },
+    );
+    assert.equal(browser.error, undefined);
+    assert.notEqual(browser.status, 0);
+    assert.match(browser.stderr, /ERR_PACKAGE_PATH_NOT_EXPORTED/);
+  }
+});
+
+test("database startup failures are sanitized and never advertise an API listener", () => {
+  for (const script of ["src/index.ts", "../../packages/db/src/migrate.ts"]) {
+    const result = spawnSync(process.execPath, ["--import", "tsx", script], {
+      cwd: new URL("../", import.meta.url),
+      env: {
+        ...process.env,
+        NODE_ENV: "test",
+        API_HOST: "127.0.0.1",
+        API_PORT: "3001",
+        DATABASE_URL: "postgres://test:private-password@127.0.0.1:1/missing",
+      },
+      encoding: "utf8",
+      timeout: 7000,
+    });
+    assert.equal(result.error, undefined);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /EADDRINUSE/);
-    assert.match(result.stderr, new RegExp(`port: ${port}`));
-    assert.doesNotMatch(result.stdout, /API listening/);
-  });
+    assert.match(result.stderr, /database_connection_failed|migration_failed/);
+    assert.doesNotMatch(
+      result.stdout + result.stderr,
+      /private-password|postgres:\/\/|API listening/,
+    );
+  }
 });

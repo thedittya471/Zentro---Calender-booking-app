@@ -1,18 +1,4 @@
-import { randomUUID } from "node:crypto";
-import type { NextFunction, Request, RequestHandler, Response } from "express";
-
-export const requestId: RequestHandler = (_request, response, next) => {
-  response.locals.requestId = randomUUID();
-  response.setHeader("X-Request-ID", response.locals.requestId);
-  next();
-};
-
-export const notFound: RequestHandler = (_request, response) => {
-  response.status(404).json({
-    error: { code: "NOT_FOUND", message: "Route not found" },
-    requestId: response.locals.requestId,
-  });
-};
+import type { NextFunction, Request, Response } from "express";
 
 export function handleError(
   error: unknown,

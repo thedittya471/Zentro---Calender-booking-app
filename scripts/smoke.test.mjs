@@ -12,11 +12,18 @@ const env = {
   API_PORT: "3001",
   PORT: "3000",
 };
+const apiEnv = {
+  ...env,
+  NODE_ENV: "test",
+  DATABASE_URL:
+    "postgresql://zentro_test:test_only@127.0.0.1:55432/zentro_test",
+  DB_POOL_MAX: "2",
+};
 
-async function start(t, args, cwd, ready) {
+async function start(t, args, cwd, ready, childEnv = env) {
   const child = spawn(process.execPath, args, {
     cwd,
-    env,
+    env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
   t.after(async () => {
@@ -25,7 +32,10 @@ async function start(t, args, cwd, ready) {
     child.kill("SIGTERM");
     const timeout = setTimeout(() => child.kill("SIGKILL"), 3000);
     try {
-      await exited;
+      const [code, signal] = await exited;
+      if (childEnv === apiEnv) {
+        assert.equal(code, 0, `API shutdown failed (${signal})`);
+      }
     } finally {
       clearTimeout(timeout);
     }
@@ -57,7 +67,13 @@ test(
   "built workspace applications start and respond",
   { timeout: 25000 },
   async (t) => {
-    await start(t, ["dist/index.js"], `${root}apps/api`, /API listening/);
+    await start(
+      t,
+      ["dist/index.js"],
+      `${root}apps/api`,
+      /API listening/,
+      apiEnv,
+    );
     await start(
       t,
       ["node_modules/next/dist/bin/next", "start", "--hostname", "127.0.0.1"],
@@ -86,7 +102,7 @@ test(
     const duplicateApi = spawnSync(
       process.execPath,
       ["apps/api/dist/index.js"],
-      { cwd: root, env, encoding: "utf8", timeout: 5000 },
+      { cwd: root, env: apiEnv, encoding: "utf8", timeout: 5000 },
     );
     assert.equal(duplicateApi.error, undefined);
     assert.notEqual(duplicateApi.status, 0);

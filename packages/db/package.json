@@ -1,0 +1,42 @@
+{
+  "name": "@repo/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "browser": null,
+      "types": "./dist/database.d.ts",
+      "default": "./dist/database.js"
+    },
+    "./config": {
+      "browser": null,
+      "types": "./dist/config.d.ts",
+      "default": "./dist/config.js"
+    },
+    "./migrations": {
+      "browser": null,
+      "types": "./dist/migrations.d.ts",
+      "default": "./dist/migrations.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "tsc -p tsconfig.json",
+    "check-types": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

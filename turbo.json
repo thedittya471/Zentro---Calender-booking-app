@@ -6,12 +6,28 @@
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": ["^build", "^check-types"]
     },
     "dev": {
-      "passThroughEnv": ["NODE_ENV", "API_HOST", "API_PORT"],
+      "passThroughEnv": [
+        "NODE_ENV",
+        "API_HOST",
+        "API_PORT",
+        "DATABASE_URL",
+        "DB_POOL_MAX",
+        "NODE_EXTRA_CA_CERTS"
+      ],
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "test:api": {
+      "dependsOn": ["^build"],
+      "cache": false
     }
   }
 }

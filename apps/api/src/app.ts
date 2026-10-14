@@ -1,5 +1,7 @@
 import express, { type Router } from "express";
-import { handleError, notFound, requestId } from "./middleware.js";
+import { handleError } from "./middleware/error-handler.js";
+import { notFound } from "./middleware/not-found.js";
+import { requestId } from "./middleware/request-id.js";
 
 export function createApp(routes: Router = express.Router()) {
   const app = express();

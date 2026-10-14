@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import pg from "pg";
-import { withDatabase } from "./fixtures/database.mjs";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { sql } from "drizzle-orm";
+import { createDatabase } from "@repo/db";
+import { migrateDatabase } from "@repo/db/migrations";
+import { databaseUrl, withDatabase } from "./fixtures/database.mjs";
+import { withApi } from "./fixtures/api.mjs";
 
 test("database fixture rejects an unexpected database before writing", async (t) => {
   t.mock.method(pg.Client.prototype, "connect", async () => {});
@@ -81,4 +89,197 @@ test("database fixtures do not use application or libpq environment connections"
       else process.env[name] = previous[index];
     });
   }
+});
+
+test("Drizzle transactions roll back and a saturated pool rejects bounded acquisition", async () => {
+  await withDatabase(async (client) => {
+    const schema = (await client.query("SELECT current_schema() AS name"))
+      .rows[0].name;
+    const db = createDatabase({
+      NODE_ENV: "test",
+      DATABASE_URL: databaseUrl,
+      DB_POOL_MAX: "1",
+    });
+    try {
+      await db.execute(
+        sql.raw(`CREATE TABLE "${schema}".pool_values (value integer UNIQUE)`),
+      );
+      await assert.rejects(
+        db.transaction(async (tx) => {
+          await tx.execute(
+            sql.raw(`INSERT INTO "${schema}".pool_values VALUES (1)`),
+          );
+          await tx.execute(
+            sql.raw(`INSERT INTO "${schema}".pool_values VALUES (1)`),
+          );
+        }),
+        (error) => error.cause?.code === "23505",
+      );
+      assert.equal(
+        (
+          await client.query(
+            "SELECT count(*)::integer AS count FROM pool_values",
+          )
+        ).rows[0].count,
+        0,
+      );
+      const held = await db.$client.connect();
+      try {
+        await assert.rejects(
+          db.$client.connect(),
+          /timeout exceeded when trying to connect/,
+        );
+        assert.equal(db.$client.totalCount, 1);
+      } finally {
+        held.release();
+      }
+      assert.equal((await db.execute(sql`SELECT 1 AS value`)).rows[0].value, 1);
+    } finally {
+      await db.$client.end();
+    }
+    assert.equal(db.$client.totalCount, 0);
+  });
+});
+
+test("database statements time out and leave the pool usable", async () => {
+  const db = createDatabase({ NODE_ENV: "test", DATABASE_URL: databaseUrl });
+  try {
+    await assert.rejects(
+      db.execute(sql`SELECT pg_sleep(10)`),
+      (error) => error.cause?.code === "57014",
+    );
+    assert.equal((await db.execute(sql`SELECT 1 AS value`)).rows[0].value, 1);
+  } finally {
+    await db.$client.end();
+  }
+});
+
+test("idle pool errors omit connection details", (t) => {
+  const logs = [];
+  t.mock.method(console, "error", (entry) => logs.push(entry));
+  const db = createDatabase({ NODE_ENV: "test", DATABASE_URL: databaseUrl });
+  db.$client.emit("error", new Error("private-password guest details"));
+  assert.deepEqual(
+    logs.map((entry) => JSON.parse(entry)),
+    [{ event: "database_pool_error" }],
+  );
+  return db.$client.end();
+});
+
+test("migrations apply once, preserve existing data, and roll back a failed batch", async () => {
+  await withDatabase(async (client) => {
+    const schema = (await client.query("SELECT current_schema() AS name"))
+      .rows[0].name;
+    const folder = await mkdtemp(join(tmpdir(), "zentro-migrations-"));
+    const db = createDatabase({
+      NODE_ENV: "test",
+      DATABASE_URL: databaseUrl,
+      DB_POOL_MAX: "1",
+    });
+    const config = {
+      migrationsFolder: folder,
+      migrationsSchema: schema,
+      migrationsTable: "migration_history",
+    };
+    const entries = [
+      { idx: 0, version: "7", when: 1, tag: "0000_fixture", breakpoints: true },
+    ];
+    try {
+      await mkdir(join(folder, "meta"));
+      await writeFile(
+        join(folder, "meta/_journal.json"),
+        JSON.stringify({ version: "7", dialect: "postgresql", entries }),
+      );
+      await writeFile(
+        join(folder, "0000_fixture.sql"),
+        `CREATE TABLE "${schema}".migration_values (value integer PRIMARY KEY);\n--> statement-breakpoint\nINSERT INTO "${schema}".migration_values VALUES (42);`,
+      );
+      await migrateDatabase(db, config);
+      await migrateDatabase(db, config);
+      assert.deepEqual(
+        (await client.query("SELECT value FROM migration_values")).rows,
+        [{ value: 42 }],
+      );
+      assert.equal(
+        (
+          await client.query(
+            "SELECT count(*)::integer AS count FROM migration_history",
+          )
+        ).rows[0].count,
+        1,
+      );
+      entries.push({
+        idx: 1,
+        version: "7",
+        when: 2,
+        tag: "0001_failure",
+        breakpoints: true,
+      });
+      await writeFile(
+        join(folder, "meta/_journal.json"),
+        JSON.stringify({ version: "7", dialect: "postgresql", entries }),
+      );
+      await writeFile(
+        join(folder, "0001_failure.sql"),
+        `CREATE TABLE "${schema}".rolled_back (value integer);\n--> statement-breakpoint\nSELECT * FROM "${schema}".missing_table;`,
+      );
+      await assert.rejects(
+        migrateDatabase(db, config),
+        (error) => error.cause?.code === "42P01",
+      );
+      assert.equal(
+        (
+          await client.query("SELECT to_regclass($1) AS name", [
+            `${schema}.rolled_back`,
+          ])
+        ).rows[0].name,
+        null,
+      );
+      assert.equal(
+        (
+          await client.query(
+            "SELECT count(*)::integer AS count FROM migration_history",
+          )
+        ).rows[0].count,
+        1,
+      );
+      assert.deepEqual(
+        (await client.query("SELECT value FROM migration_values")).rows,
+        [{ value: 42 }],
+      );
+    } finally {
+      await db.$client.end();
+      await rm(folder, { recursive: true, force: true });
+    }
+  });
+});
+
+test("connected API startup rejects an occupied listener and releases its pool", async () => {
+  await withDatabase(async () => {
+    await withApi(async (url) => {
+      const result = spawnSync(
+        process.execPath,
+        ["--import", "tsx", "src/index.ts"],
+        {
+          cwd: new URL("../", import.meta.url),
+          env: {
+            ...process.env,
+            NODE_ENV: "test",
+            API_HOST: "127.0.0.1",
+            API_PORT: new URL(url).port,
+            DATABASE_URL: databaseUrl,
+          },
+          encoding: "utf8",
+          timeout: 7000,
+        },
+      );
+      assert.equal(result.error, undefined);
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /EADDRINUSE/);
+      assert.doesNotMatch(
+        result.stdout + result.stderr,
+        /API listening|test_only|postgresql:\/\//,
+      );
+    });
+  });
 });

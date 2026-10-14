@@ -18,10 +18,12 @@
     "infra:down": "docker compose -f compose.dev.yaml -p zentro-local down",
     "infra:status": "docker compose -f compose.dev.yaml -p zentro-local ps",
     "infra:check": "node scripts/infra-check.mjs",
-    "test": "pnpm --filter @repo/api test",
-    "test:api": "pnpm --filter @repo/api test:api",
+    "test": "turbo run test",
+    "test:api": "turbo run test:api --filter=@repo/api",
     "test:infra:up": "docker compose -f compose.test.yaml -p zentro-test up --wait --wait-timeout 60",
-    "test:infra:down": "docker compose -f compose.test.yaml -p zentro-test down"
+    "test:infra:down": "docker compose -f compose.test.yaml -p zentro-test down",
+    "db:generate": "pnpm --filter @repo/db db:generate",
+    "db:migrate": "pnpm --filter @repo/db db:migrate"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

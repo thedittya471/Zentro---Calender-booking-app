@@ -8,6 +8,9 @@ Use Node.js 24 and pnpm 11.5.3. Dependency installation scripts are disabled unl
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm infra:up
+# Use the host port and credentials configured for your local Compose stack.
+export DATABASE_URL='postgresql://zentro:dev_only@127.0.0.1:5432/zentro'
 pnpm dev
 ```
 
@@ -27,7 +30,7 @@ pnpm infra:check
 
 Compose runs version-pinned PostgreSQL and Redis images and waits for both health checks. Host ports bind to `127.0.0.1` only. Defaults are PostgreSQL on 5432 and Redis on 6379, with development-only credentials from [.env.example](.env.example). To override them, copy the example to an ignored root `.env` and edit it. If ports or credentials change, update the connection URLs too; URL-encode special characters in URL credentials. Do not use production data or credentials in this stack.
 
-The connection check runs an authenticated PostgreSQL query and Redis PING inside the containers. It does not prove that application clients are integrated or that host port connectivity works. API/worker environment loading and database connections are not implemented yet.
+The connection check runs an authenticated PostgreSQL query and Redis PING inside the containers. It does not prove host port connectivity. The API checks PostgreSQL through its pool before listening; the worker has no database consumer yet. Neither application automatically loads root `.env`.
 
 Named volumes preserve PostgreSQL data and Redis append-only files when containers are recreated. PostgreSQL 18 uses a volume at `/var/lib/postgresql`; see the [official PostgreSQL image](https://hub.docker.com/_/postgres). Changing initialization credentials in `.env` does not change an existing PostgreSQL database password. Update it explicitly rather than deleting data. The initialization database user has local superuser privileges; production requires a separate least-privileged application role.
 
@@ -38,6 +41,30 @@ pnpm infra:down
 ```
 
 Do not add `--volumes` unless you intentionally want to delete local data. Keep development volumes separate from test fixtures. Image patch upgrades should be reviewed; PostgreSQL major upgrades require an explicit migration, not just changing the image tag.
+
+## Database connections and migrations
+
+The API requires an explicit `DATABASE_URL` with a PostgreSQL scheme, host, username, password and database. Invalid configuration fails before connecting and omits its value from errors. `DB_POOL_MAX` is an integer from 1–100, defaulting to 10 connections per process. Budget the total across all API/worker replicas and leave capacity for migrations and administration; these defaults are starting limits, not measured production capacity. Connection/pool acquisition times out after 3 seconds, statements and idle transactions after 5 seconds, and unused connections close after 10 seconds. Idle pool failures log only `database_pool_error`; startup connection failures never advertise a listener.
+
+Production connections require certificate-verified TLS. The only supported URL query setting is `sslmode=verify-full`, or `sslmode=disable` in development/test. Other query settings are rejected so URLs cannot override timeout or TLS policy. Use `NODE_EXTRA_CA_CERTS` for a trusted private CA; never disable certificate verification. The current connection contract supports password authentication. See [node-postgres pooling](https://node-postgres.com/apis/pool) and [TLS configuration](https://node-postgres.com/features/ssl).
+
+Schema definitions live in `packages/db/src/schema.ts`, currently with no domain tables. Generate SQL and snapshots without a database connection:
+
+```sh
+pnpm db:generate
+```
+
+Review and commit generated SQL, snapshots and the journal in `packages/db/drizzle` together. Never edit applied migrations or use schema push against a deployed database. Apply migrations once through a controlled deployment step, using a DDL-capable migration role and the intended database URL:
+
+```sh
+pnpm db:migrate
+# A built deployment can run the same entry point without development tooling:
+node packages/db/dist/migrate.js
+```
+
+Ship the `@repo/db` workspace dependency, including `packages/db/dist` and `packages/db/drizzle`, with the API deployment. The migration runner uses one connection, records applied migrations in `drizzle.__drizzle_migrations`, closes its pool on success/failure, and exits nonzero with a sanitized `migration_failed` event on SQL/connection failure. It validates database settings independently of API listener settings. It uses the same timeout bounds as the API; review long DDL/backfills separately. Serialize migration jobs: this runner does not coordinate concurrent deployments. Application startup never runs migrations. Repeating a successful migration run preserves data and applies no duplicate SQL. There are no product migrations yet; an empty run initializes only Drizzle's bookkeeping. See [Drizzle generation](https://orm.drizzle.team/docs/drizzle-kit-generate) and [migration configuration](https://orm.drizzle.team/docs/drizzle-config-file).
+
+On SIGINT/SIGTERM the API stops accepting connections, drains requests, and closes its pool. A 10-second deadline forces a nonzero exit if draining cannot finish. Listener failures also release the pool. `app.ts` remains limited to Express middleware and route wiring.
 
 ## Verification and build
 
@@ -65,7 +92,7 @@ pnpm build
 pnpm test:smoke
 ```
 
-The smoke check starts built applications on ports 3000/3001, verifies their responses and stops them. Keep those ports free when running it.
+The smoke check starts built applications on ports 3000/3001, verifies their responses and clean shutdown, and stops them. Keep those ports free and start `pnpm test:infra:up` first; stop it with `pnpm test:infra:down` afterward, including on failure. API smoke processes use fixed test-only database settings and ignore caller host/port/database overrides. Builds and focused `pnpm test:api` still require no database.
 
 After a build, start each application separately:
 
@@ -75,9 +102,13 @@ pnpm --filter @repo/api start
 pnpm --filter @repo/worker start
 ```
 
-The worker start command exits immediately: no background work is implemented. Graceful production shutdown, authentication, database connections and scheduling features are not implemented yet. The workspace build does not require secrets or external services.
+The worker start command exits immediately: no background work is implemented. Authentication, domain persistence and scheduling features are not implemented yet. The workspace build does not require secrets or external services.
 
-Shared TypeScript settings live in `packages/typescript-config`. Database, contracts and UI packages will be added with their first consumers.
+Shared TypeScript settings live in `packages/typescript-config`. `packages/db` owns PostgreSQL configuration, the Drizzle pool factory, schema and migration tooling. It exports `@repo/db`, `@repo/db/config` and `@repo/db/migrations` as compiled ESM with type declarations; imports do not create connections or run migrations. Browser exports are blocked. Keep it out of web/server-rendering imports as well: all frontend data access goes through the API. Contracts and UI packages will be added with their first consumers.
+
+API code is organized by responsibility: `src/config/env.ts` validates listener settings; `src/middleware` contains request identifiers, not-found and error handlers; `src/server/start.ts` owns startup and shutdown. `src/app.ts` wires Express and `src/index.ts` invokes the server entry point. Add feature folders and utilities with actual implementations rather than creating empty layers.
+
+Turborepo builds database dependencies before API builds, type checks, tests and development startup. `pnpm dev` watches database compilation and reloads the API when the compiled dependency changes. `pnpm test` and `pnpm test:api` build their dependencies automatically; standalone app start commands require an existing workspace build.
 
 ESLint uses one root flat configuration for workspace source and scripts, with TypeScript recommended rules and Next.js/React rules scoped to the web app. Warnings fail the lint command. Prettier owns formatting; generated output and the generated lockfile are excluded.
 
