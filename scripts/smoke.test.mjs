@@ -5,10 +5,18 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const env = {
+  ...process.env,
+  NODE_ENV: "production",
+  API_HOST: "127.0.0.1",
+  API_PORT: "3001",
+  PORT: "3000",
+};
 
 async function start(t, args, cwd, ready) {
   const child = spawn(process.execPath, args, {
     cwd,
+    env,
     stdio: ["ignore", "pipe", "pipe"],
   });
   t.after(async () => {
@@ -78,7 +86,7 @@ test(
     const duplicateApi = spawnSync(
       process.execPath,
       ["apps/api/dist/index.js"],
-      { cwd: root, encoding: "utf8", timeout: 5000 },
+      { cwd: root, env, encoding: "utf8", timeout: 5000 },
     );
     assert.equal(duplicateApi.error, undefined);
     assert.notEqual(duplicateApi.status, 0);
@@ -88,7 +96,7 @@ test(
     const worker = execFileSync(
       process.execPath,
       ["apps/worker/dist/index.js"],
-      { cwd: root, encoding: "utf8", timeout: 5000 },
+      { cwd: root, env, encoding: "utf8", timeout: 5000 },
     );
     assert.match(worker, /no job processing configured/);
   },

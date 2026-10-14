@@ -209,12 +209,17 @@ test("errors after response headers close the stream without a second response",
     setImmediate(() => next(new Error("private-probe")));
   });
   await withApi(async (url) => {
-    await assert.rejects(async () => {
-      const response = await fetch(`${url}/stream`, {
-        signal: AbortSignal.timeout(3000),
-      });
-      await response.text();
-    });
+    await assert.rejects(
+      async () => {
+        const response = await fetch(`${url}/stream`, {
+          signal: AbortSignal.timeout(3000),
+        });
+        await response.text();
+      },
+      (error) =>
+        error instanceof TypeError &&
+        ["UND_ERR_SOCKET", "ECONNRESET"].includes(error.cause?.code),
+    );
     assert.equal(logs.length, 1);
     assert.equal(JSON.parse(logs[0]).code, "INTERNAL_ERROR");
     assert.doesNotMatch(logs.join(""), /private-probe/);
