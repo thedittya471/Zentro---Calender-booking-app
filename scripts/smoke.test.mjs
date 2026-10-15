@@ -117,6 +117,28 @@ test(
       assert.equal(response.status, 200);
       const html = await response.text();
       assert.match(html, new RegExp(`<h1>${heading}</h1>`));
+      if (path === "/dashboard") {
+        const form = html.match(
+          /<form[^>]*aria-label="Form component preview".*?<\/form>/s,
+        )?.[0];
+        assert.ok(form, "Missing accessible form preview");
+        assert.match(form, /<fieldset disabled=""/);
+        assert.match(form, /Use made-up details/);
+        assert.match(form, /role="alert"/);
+        assert.match(form, /role="status"/);
+        const inputs = [...form.matchAll(/<input\b[^>]*>/g)];
+        assert.equal(inputs.length, 2);
+        for (const [input] of inputs) {
+          const id = input.match(/id="([^"]+)"/)?.[1];
+          assert.ok(id);
+          assert.ok(form.includes(`for="${id}"`));
+          assert.ok(form.includes(`id="${id}-hint"`));
+          assert.ok(input.includes(`aria-describedby="${id}-hint"`));
+          assert.match(input, /required=""/);
+          assert.doesNotMatch(input, /\bname="/);
+          assert.doesNotMatch(input, /aria-invalid="true"/);
+        }
+      }
       assert.match(html, /<main[^>]*id="main-content"[^>]*tabindex="-1"/);
       assert.match(
         html,

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FormPreview } from "./form-preview";
 import { workspaceSections } from "./sections";
 
 export const metadata: Metadata = { title: "Overview" };
@@ -27,6 +28,7 @@ export default function WorkspacePage() {
           </li>
         ))}
       </ul>
+      <FormPreview />
     </>
   );
 }

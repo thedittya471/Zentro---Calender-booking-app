@@ -31,6 +31,14 @@ The website must identify the product as a preview until scheduling is released.
 - Unknown URLs return an actual 404 with a recovery link. The public booking experience belongs outside this workspace layout.
 - Private account and booking data require server-side authentication and authorization before being introduced; the visual shell does not establish access control.
 
+## Forms and feedback
+
+Use visible labels and native input semantics. Shared fields connect labels, hints and inline errors with stable IDs, preserve native input props and refs, and mark invalid fields only after validation. Required fields identify that requirement in text. Keep keyboard focus visible, error messages readable without color, and control targets at least 44 pixels high.
+
+Validation failures keep entered values, explain how to correct them and focus the first invalid field. Use an alert region for submission errors and a polite status region for successful feedback. Clear stale success feedback when users edit values; resetting a form clears values and feedback. Client validation improves usability; real mutations must independently validate on the server.
+
+The workspace overview includes an explicitly local component demonstration using made-up contact details. It sends no requests, stores nothing and never claims to create an account or booking. Disable its controls until hydration; keep the explanatory text available without JavaScript. Add pending, retry and provider failure behavior with the first real asynchronous form rather than simulating it here.
+
 ## Motion and components
 
 GSAP ScrollTrigger owns the public scroll narrative and decorative scroll reveals. Motion owns small hover/press interactions, accordion indicators and workspace entrance transitions. Never let both libraries animate the same element. Use Radix Accordion for its accessible disclosure and keyboard behavior.
@@ -54,6 +62,9 @@ Use one main landmark and one page heading, logical heading levels, descriptive 
 Verify at 320, 768, 1024 and 1440 pixels, including long text and keyboard use. Check scroll progress, reverse scrolling, browser history, repeated page navigation, accordion keyboard behavior, reduced motion, missing-route recovery and console output. Keep automated HTTP checks for the real routes and preview boundary. Browser evidence belongs in the work tracker; this document defines the intended design.
 
 ## Implementation references
+
+- [React input semantics and stable label IDs](https://react.dev/reference/react-dom/components/input).
+- [ARIA invalid-state guidance](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-invalid).
 
 - [Next.js links and section navigation](https://nextjs.org/docs/app/api-reference/components/link).
 - [React layout measurement before paint](https://react.dev/reference/react/useLayoutEffect).
