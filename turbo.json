@@ -12,6 +12,7 @@
       "passThroughEnv": [
         "NODE_ENV",
         "API_HOST",
+        "API_ORIGIN",
         "API_PORT",
         "DATABASE_URL",
         "DB_POOL_MAX",

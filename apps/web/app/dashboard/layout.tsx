@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { WorkspaceNavigation } from "./navigation";
+import { QueryProvider } from "../components/query-provider";
 import { Brand } from "../components/brand";
 import { PageTransition } from "../components/page-transition";
 
@@ -27,7 +28,9 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
         <p className="preview-note">
           Scheduling and account features aren’t available yet.
         </p>
-        <PageTransition>{children}</PageTransition>
+        <QueryProvider>
+          <PageTransition>{children}</PageTransition>
+        </QueryProvider>
       </main>
     </div>
   );

@@ -10,6 +10,7 @@ const env = {
   NODE_ENV: "production",
   API_HOST: "127.0.0.1",
   API_PORT: "3001",
+  API_ORIGIN: "http://127.0.0.1:3001",
   PORT: "3000",
 };
 const apiEnv = {
@@ -164,6 +165,13 @@ test(
       assert.equal(response.status, 404);
       assert.match(await response.text(), /Page not found/);
     }
+
+    const bridge = await fetch("http://127.0.0.1:3000/api/health/ready", {
+      signal: AbortSignal.timeout(10_000),
+    });
+    assert.equal(bridge.status, 200);
+    assert.equal(bridge.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await bridge.json(), { status: "ready" });
 
     const api = await fetch("http://127.0.0.1:3001", {
       signal: AbortSignal.timeout(5000),

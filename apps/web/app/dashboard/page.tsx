@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ServiceStatus } from "./service-status";
 import { FormPreview } from "./form-preview";
 import { workspaceSections } from "./sections";
 
@@ -29,6 +30,7 @@ export default function WorkspacePage() {
         ))}
       </ul>
       <FormPreview />
+      <ServiceStatus />
     </>
   );
 }

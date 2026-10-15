@@ -20,6 +20,16 @@ The web app runs at http://localhost:3000. The API binds to http://127.0.0.1:300
 
 The API validates `NODE_ENV` (`development`, `test` or `production`), `API_HOST` (an IPv4/IPv6 address) and `API_PORT` (an integer from 1 through 65535) before opening its listener. Missing values default to `development`, `127.0.0.1` and `3001`; explicitly empty or invalid values terminate startup with the setting name, without printing its value. The API development command loads the ignored root `.env` if present; existing shell variables take precedence, including empty or invalid values. For example, `API_PORT=3002 pnpm dev` changes the API port. Restart the development command after editing `.env`. Production startup and migration commands require settings exported in the shell or injected through the deployment environment. Container deployments must explicitly set `NODE_ENV=production` and `API_HOST=0.0.0.0` (or `::` for IPv6) when external access is intended. No server configuration is imported by the web app; the worker has no configuration consumers yet.
 
+## Frontend API access
+
+The workspace includes an on-demand service connection check. It checks API/database readiness only; it does not enable scheduling. TanStack Query owns API response state in a memory-only, workspace-scoped cache: reads are fresh for 30 seconds and unused entries expire after five minutes. Requests are deduplicated; automatic retries, focus refresh and mutation retries are disabled. The readiness screen additionally disables reconnect/mount refresh and offers an explicit retry. Pending and failure feedback never present a failed check as success.
+
+The typed readiness call uses `/api/health/ready`, validates JSON before caching it and rejects non-success HTTP responses. Browser requests have a 10-second deadline and accept query cancellation. The exact Next.js bridge calls Express `/health/ready` with a six-second deadline, no redirects, no browser cookies/authorization and no HTTP caching. This is a public health bridge, not a general authenticated proxy. It returns only validated readiness or a sanitized 503, including on missing configuration or unreachable/malformed upstream responses.
+
+Set server-only `API_ORIGIN` to the API's HTTP(S) origin (no credentials, path, query or fragment). Development defaults to `http://127.0.0.1:3001`; production has no fallback. For a custom API port, run `API_PORT=3002 API_ORIGIN=http://127.0.0.1:3002 pnpm dev`. Export `API_ORIGIN` in the web process environment or use an ignored `apps/web/.env.local`; Next.js does not load the root API `.env`. Production startup needs the value injected into the web runtime, not exposed as a `NEXT_PUBLIC_*` variable. Builds do not contact the API or require its origin.
+
+Keep future reads beside their runtime response validators and query options; add contracts with actual domain endpoints. Private query keys must include account identity, and logout/account changes must clear private cached data when authentication is implemented. Do not put private data into persistent browser storage or shared server query clients. Authoritative validation and authorization stay in Express. See [TanStack defaults](https://tanstack.com/query/v5/docs/framework/react/guides/important-defaults) and [Next.js route handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route).
+
 ## Web application shell
 
 The public entry at `/` links to the workspace preview at `/dashboard`. Its shared navigation includes overview, event types, bookings, availability and calendars, with the current page marked for assistive technology. Navigation stays visible and wraps on small screens; desktop layouts use a sidebar. A keyboard skip link moves focus directly to the main content.
@@ -136,6 +146,16 @@ ESLint uses one root flat configuration for workspace source and scripts, with T
 The root Next.js development dependency provides the parser required by `eslint-config-next`; keep its version aligned with the web app. Next.js documents ESLint 10 support, although some bundled plugins still declare older ESLint peer ranges and produce installation warnings. See the [Next.js lint configuration reference](https://nextjs.org/docs/app/api-reference/config/eslint). No peer-range overrides are applied.
 
 Use `pnpm lint:fix` for safe automatic lint fixes and `pnpm format` to apply formatting. Review the resulting diff. Formatting and linting are separate checks; neither replaces type checking or tests.
+
+## Commit checks
+
+`pnpm install --frozen-lockfile` runs `prepare` to install [Husky](https://typicode.github.io/husky/get-started.html) hooks. Run `pnpm prepare` once if dependencies were installed with scripts disabled. Git commits run `pnpm check:staged`: Prettier automatically formats supported staged files using the existing ignore rules, then ESLint checks staged JavaScript/TypeScript with warnings treated as failures. These tasks run sequentially so lint reads the formatted files. Unsupported assets and generated files follow the existing tool exclusions.
+
+lint-staged adds the formatting fixes to the staged changes automatically; no extra `git add` is needed. Syntax or lint errors still block the commit. On failure, its default rollback restores the pre-hook content and staging. Fix the reported errors, review the diff and stage your intended changes again; use `pnpm lint:fix` where appropriate. [lint-staged](https://github.com/lint-staged/lint-staged) temporarily hides unstaged edits to partially staged files, formats the staged version and restores the edits afterward without adding them to the commit. Keep its default backup/restore behavior enabled.
+
+Run `pnpm test:hooks` to exercise hook installation, acceptance/rejection and partial-staging preservation in a disposable Git repository. This test does not stage or commit project changes. CI sets `HUSKY=0` to skip local hook installation but runs the regression test and retains full-repository formatting, lint, type, integration and build checks. Hooks check changed files; they can be bypassed and do not guarantee all CI checks will pass. Database tests and builds stay out of the pre-commit path.
+
+Git GUI clients need the project's Node.js and pnpm on their PATH. If a GUI cannot find them, configure the environment in Husky's user-level `~/.config/husky/init.sh`; do not hard-code a developer-specific runtime path in the repository.
 
 ## Continuous integration
 

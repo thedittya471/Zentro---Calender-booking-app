@@ -477,3 +477,17 @@ h2 {
 .form-preview fieldset:disabled button {
   cursor: not-allowed;
 }
+
+.service-status {
+  margin-top: 2rem;
+  max-width: 36rem;
+}
+
+.service-status .secondary-button {
+  margin-block: 1rem;
+}
+
+.service-status button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
