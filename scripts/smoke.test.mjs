@@ -85,7 +85,63 @@ test(
       signal: AbortSignal.timeout(5000),
     });
     assert.equal(page.status, 200);
-    assert.match(await page.text(), /<h1>Zentro<\/h1>/);
+    const home = await page.text();
+    assert.match(home, /<h1>Make room for <em>what matters\.<\/em><\/h1>/);
+    assert.match(home, /href="\/dashboard"/);
+    assert.match(home, /href="#main-content"/);
+    assert.match(home, /id="how-it-works"/);
+    assert.match(home, /id="questions"/);
+    assert.match(home, /Illustrative scheduling preview/);
+    assert.match(home, /THE TIME STUDIO/);
+    assert.match(home, /aria-label="Story chapters"/);
+    assert.match(home, /Illustration of a booking link/);
+    assert.match(home, /Illustration of the planned meeting outcome/);
+    assert.match(home, /class="ambient-scene" aria-hidden="true"><canvas/);
+    assert.match(home, /Scheduling and account features aren’t available yet/);
+    const disclosures = [
+      ...home.matchAll(/<button\b[^>]*aria-expanded="(true|false)"[^>]*>/g),
+    ];
+    assert.equal(disclosures.length, 4);
+    assert.equal(disclosures.filter((entry) => entry[1] === "true").length, 1);
+
+    for (const [path, heading] of [
+      ["/dashboard", "Your scheduling workspace"],
+      ["/dashboard/event-types", "Event types"],
+      ["/dashboard/bookings", "Bookings"],
+      ["/dashboard/availability", "Availability"],
+      ["/dashboard/calendars", "Calendars"],
+    ]) {
+      const response = await fetch(`http://127.0.0.1:3000${path}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      assert.equal(response.status, 200);
+      const html = await response.text();
+      assert.match(html, new RegExp(`<h1>${heading}</h1>`));
+      assert.match(html, /<main[^>]*id="main-content"[^>]*tabindex="-1"/);
+      assert.match(
+        html,
+        /Scheduling and account features aren’t available yet/,
+      );
+      const navigation = html.match(/<nav aria-label="Workspace">.*?<\/nav>/s);
+      assert.ok(navigation, `Missing workspace navigation on ${path}`);
+      const current = [
+        ...navigation[0].matchAll(/<a\b[^>]*aria-current="page"[^>]*>/g),
+      ];
+      assert.equal(current.length, 1);
+      assert.ok(current[0][0].includes(`href="${path}"`));
+    }
+
+    for (const path of [
+      "/dashboard/missing",
+      "/dashboard/bookings/missing",
+      "/missing",
+    ]) {
+      const response = await fetch(`http://127.0.0.1:3000${path}`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      assert.equal(response.status, 404);
+      assert.match(await response.text(), /Page not found/);
+    }
 
     const api = await fetch("http://127.0.0.1:3001", {
       signal: AbortSignal.timeout(5000),

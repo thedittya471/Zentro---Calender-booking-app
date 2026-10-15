@@ -6,7 +6,7 @@
     "node": ">=24 <27"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --ui=tui",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
     "test:smoke": "pnpm build && node --test scripts/smoke.test.mjs",

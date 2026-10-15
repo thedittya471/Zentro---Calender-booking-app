@@ -8,15 +8,25 @@ Use Node.js 24 and pnpm 11.5.3. Dependency installation scripts are disabled unl
 
 ```sh
 pnpm install --frozen-lockfile
+# Create an ignored local configuration file, then adjust its ports and credentials.
+cp -n .env.example .env
 pnpm infra:up
-# Use the host port and credentials configured for your local Compose stack.
-export DATABASE_URL='postgresql://zentro:dev_only@127.0.0.1:5432/zentro'
 pnpm dev
 ```
 
 The web app runs at http://localhost:3000. The API binds to http://127.0.0.1:3001, exposes health probes and returns 404 for unmatched paths. The worker development watcher runs the scaffold, which logs that job processing is unconfigured and exits until the next source change.
 
-The API validates `NODE_ENV` (`development`, `test` or `production`), `API_HOST` (an IPv4/IPv6 address) and `API_PORT` (an integer from 1 through 65535) before opening its listener. Missing values default to `development`, `127.0.0.1` and `3001`; explicitly empty or invalid values terminate startup with the setting name, without printing its value. Export settings in your shell or inject them through your deployment environment; root `.env` is used by Compose and is not automatically loaded by the API. For example, `API_PORT=3002 pnpm dev` changes the API port. Container deployments must explicitly set `NODE_ENV=production` and `API_HOST=0.0.0.0` (or `::` for IPv6) when external access is intended. No server configuration is imported by the web app; the worker has no configuration consumers yet.
+`pnpm dev` uses Turborepo's terminal UI: select a task with ↑/↓ (or `j`/`k`) to view its separate logs, press `h` to toggle fullscreen logs, `m` for keyboard shortcuts and `Ctrl+C` to stop all development tasks. The task list includes web, API, worker and database compilation. For plain streamed output, run `pnpm exec turbo run dev --ui=stream`; noninteractive terminals also use streamed output.
+
+The API validates `NODE_ENV` (`development`, `test` or `production`), `API_HOST` (an IPv4/IPv6 address) and `API_PORT` (an integer from 1 through 65535) before opening its listener. Missing values default to `development`, `127.0.0.1` and `3001`; explicitly empty or invalid values terminate startup with the setting name, without printing its value. The API development command loads the ignored root `.env` if present; existing shell variables take precedence, including empty or invalid values. For example, `API_PORT=3002 pnpm dev` changes the API port. Restart the development command after editing `.env`. Production startup and migration commands require settings exported in the shell or injected through the deployment environment. Container deployments must explicitly set `NODE_ENV=production` and `API_HOST=0.0.0.0` (or `::` for IPv6) when external access is intended. No server configuration is imported by the web app; the worker has no configuration consumers yet.
+
+## Web application shell
+
+The public entry at `/` links to the workspace preview at `/dashboard`. Its shared navigation includes overview, event types, bookings, availability and calendars, with the current page marked for assistive technology. Navigation stays visible and wraps on small screens; desktop layouts use a sidebar. A keyboard skip link moves focus directly to the main content.
+
+The landing page centers an editorial hero above a time-studio console, then pairs a sticky chapter index with three vertical story panels on spacious screens. GSAP ScrollTrigger separates calendar tiles and assembles the invitation and meeting illustrations; mobile uses a simpler reading flow. A bounded, event-driven WebGL scene splits and reforms behind the content, with a static CSS fallback when graphics are unavailable or reduced motion is requested. Motion provides workspace entrance transitions and disclosure indicators; Radix Accordion provides the FAQ controls. Animation setup is scoped and reverted on navigation or preference changes. Static text, internal links and labelled illustrations render before animation setup. The shared visual and accessibility contract is in [design.md](design.md).
+
+The workspace and its section pages are static previews. They expose no account or booking data and clearly identify unavailable features. Unknown addresses return a 404 with a link back to the overview. Authentication enforcement belongs to the later identity integration before private data or mutations are introduced. Public booking pages remain outside the dashboard layout.
 
 ## Local PostgreSQL and Redis
 
@@ -30,7 +40,7 @@ pnpm infra:check
 
 Compose runs version-pinned PostgreSQL and Redis images and waits for both health checks. Host ports bind to `127.0.0.1` only. Defaults are PostgreSQL on 5432 and Redis on 6379, with development-only credentials from [.env.example](.env.example). To override them, copy the example to an ignored root `.env` and edit it. If ports or credentials change, update the connection URLs too; URL-encode special characters in URL credentials. Do not use production data or credentials in this stack.
 
-The connection check runs an authenticated PostgreSQL query and Redis PING inside the containers. It does not prove host port connectivity. The API checks PostgreSQL through its pool before listening; the worker has no database consumer yet. Neither application automatically loads root `.env`.
+The connection check runs an authenticated PostgreSQL query and Redis PING inside the containers. It does not prove host port connectivity. The API checks PostgreSQL through its pool before listening; its development command loads root `.env`, while production startup and migration commands do not. The worker has no database consumer yet.
 
 Named volumes preserve PostgreSQL data and Redis append-only files when containers are recreated. PostgreSQL 18 uses a volume at `/var/lib/postgresql`; see the [official PostgreSQL image](https://hub.docker.com/_/postgres). Changing initialization credentials in `.env` does not change an existing PostgreSQL database password. Update it explicitly rather than deleting data. The initialization database user has local superuser privileges; production requires a separate least-privileged application role.
 

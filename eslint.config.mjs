@@ -31,6 +31,7 @@ export default defineConfig([
     files: [
       "*.mjs",
       "scripts/**/*.mjs",
+      "apps/web/test/**/*.mjs",
       "apps/{api,worker}/**/*.{ts,mjs}",
       "packages/db/**/*.{ts,mjs}",
     ],
