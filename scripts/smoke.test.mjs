@@ -147,6 +147,11 @@ test(
       );
       const navigation = html.match(/<nav aria-label="Workspace">.*?<\/nav>/s);
       assert.ok(navigation, `Missing workspace navigation on ${path}`);
+      assert.match(html, /data-navigation-compact="false"/);
+      assert.match(navigation[0], /aria-label="Compact navigation"/);
+      assert.match(navigation[0], /aria-pressed="false"/);
+      assert.match(navigation[0], /aria-controls="workspace-navigation"/);
+      assert.match(navigation[0], /id="workspace-navigation"/);
       const current = [
         ...navigation[0].matchAll(/<a\b[^>]*aria-current="page"[^>]*>/g),
       ];

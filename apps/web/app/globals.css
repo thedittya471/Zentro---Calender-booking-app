@@ -491,3 +491,57 @@ h2 {
   cursor: wait;
   opacity: 0.65;
 }
+
+.navigation-toggle {
+  display: none;
+}
+
+@media (min-width: 56.25rem) {
+  .navigation-toggle {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 2rem;
+    padding: 0.625rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font: inherit;
+    font-size: 0.75rem;
+  }
+
+  .sidebar .workspace-nav {
+    margin-top: 1rem;
+  }
+
+  .shell[data-navigation-compact="true"] {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+
+  .shell[data-navigation-compact="true"] .sidebar {
+    padding-inline: 0.75rem;
+  }
+
+  .shell[data-navigation-compact="true"] .sidebar .preview-label,
+  .shell[data-navigation-compact="true"] .sidebar-note {
+    display: none;
+  }
+
+  .shell[data-navigation-compact="true"] .sidebar .brand > span:last-child,
+  .shell[data-navigation-compact="true"] .navigation-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .shell[data-navigation-compact="true"] .sidebar-header,
+  .shell[data-navigation-compact="true"] .workspace-nav a {
+    align-items: center;
+    justify-content: center;
+  }
+}

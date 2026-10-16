@@ -26,7 +26,7 @@ The website must identify the product as a preview until scheduling is released.
 ## Workspace
 
 - Keep `/dashboard` and its existing section addresses. The current destination has a visible indicator and `aria-current="page"`.
-- Desktop uses a sidebar and content header; mobile keeps all navigation destinations visible without a modal menu.
+- Desktop uses a sidebar and content header with an optional compact rail. The toggle retains keyboard focus, exposes its pressed state and gives compact links accessible names and native hover titles. Mobile keeps all navigation destinations and labels visible without a modal menu, regardless of the desktop preference.
 - Overview introduces the four scheduling areas. Each unreleased section has an honest unavailable state and a way back to the overview.
 - Unknown URLs return an actual 404 with a recovery link. The public booking experience belongs outside this workspace layout.
 - Private account and booking data require server-side authentication and authorization before being introduced; the visual shell does not establish access control.

@@ -17,7 +17,8 @@
     "motion": "14.2.0",
     "next": "16.4.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "zustand": "5.0.11"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { WorkspaceShell } from "./workspace-shell";
 import { WorkspaceNavigation } from "./navigation";
 import { QueryProvider } from "../components/query-provider";
 import { Brand } from "../components/brand";
@@ -7,7 +8,7 @@ import { PageTransition } from "../components/page-transition";
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="shell">
+    <WorkspaceShell>
       <aside className="sidebar" aria-label="Workspace sidebar">
         <div className="sidebar-header">
           <Brand />
@@ -32,6 +33,6 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
           <PageTransition>{children}</PageTransition>
         </QueryProvider>
       </main>
-    </div>
+    </WorkspaceShell>
   );
 }

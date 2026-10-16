@@ -27,7 +27,7 @@ Authentication, scheduling, domain persistence and integrations are not implemen
 
 ## Workspace boundaries
 
-- `apps/web`: Next.js App Router frontend. No direct database access or server credential storage. TanStack Query owns API state through the workspace-scoped provider; Zustand is intended for shared UI state and is not installed yet.
+- `apps/web`: Next.js App Router frontend. No direct database access or server credential storage. TanStack Query owns API state through the workspace-scoped provider; Zustand owns dashboard navigation presentation in a layout-scoped store. Keep route selection in the URL and credentials/API records out of this store.
 - `apps/api`: Express ESM backend; owns authentication enforcement, authorization, validation and booking admission.
 - `apps/worker`: background entry point; currently logs that processing is unconfigured and exits.
 - `packages/db`: server-only PostgreSQL/Drizzle connection settings, pool factory, schema and migration tooling. Applications import its package exports; importing must not connect or execute migrations. Each process owns its pool lifecycle. No frontend consumers.
